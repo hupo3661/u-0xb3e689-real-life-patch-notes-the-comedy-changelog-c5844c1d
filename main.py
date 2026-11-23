@@ -49,6 +49,17 @@ def main() -> int:
     path = os.path.join(out_dir, "entry.txt")
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
+
+    # Read the file back and verify what actually landed on disk, so a
+    # silent write problem can never ship a bad entry.
+    with open(path, "r", encoding="utf-8", newline="\n") as f:
+        written = f.read()
+    if written != text:
+        print("verification failed: entry.txt does not match", file=sys.stderr)
+        return 1
+    if not (1 <= len(written) <= MAX_CHARS):
+        print("verification failed: entry.txt is outside the cap", file=sys.stderr)
+        return 1
     print(f"wrote {len(line)} characters to {path}")
     return 0
 
