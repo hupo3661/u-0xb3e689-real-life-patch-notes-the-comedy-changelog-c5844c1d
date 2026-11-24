@@ -81,6 +81,17 @@ def main() -> int:
             f"error: verification failed: entry.txt is {actual_bytes} bytes "
             f"on disk, expected {expected_bytes} bytes of UTF-8"
         )
+    # Byte-level read-back: compare the raw bytes on disk against the
+    # exact UTF-8 encoding of the intended text, byte for byte. This
+    # catches any encoding or newline translation that a text-mode
+    # read-back or a file-size check alone could miss.
+    with open(path, "rb") as f:
+        raw_bytes = f.read()
+    if raw_bytes != text.encode("utf-8"):
+        raise SystemExit(
+            "error: verification failed: entry.txt raw bytes do not "
+            "match the UTF-8 encoding of the entry byte for byte"
+        )
     validate_entry(written[:-1], "entry.txt")
     print(f"wrote {len(line)} characters to {path}")
     return 0
