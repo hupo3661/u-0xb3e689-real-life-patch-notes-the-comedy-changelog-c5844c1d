@@ -13,7 +13,6 @@ run, and it self-checks the competition's gate (UTF-8 text, one line,
 """
 
 import os
-import sys
 
 ENTRY = (
     "v2.3.1: Fixed a bug where the brain replayed your most embarrassing "
@@ -24,25 +23,39 @@ ENTRY = (
 MAX_CHARS = 160
 
 
+def validate_entry(line: str, source: str) -> None:
+    """Explicitly validate one entry line against the competition gate.
+
+    Raises SystemExit with a clear message on any violation, instead of
+    relying on callers to inspect a return code or on bare asserts that
+    ``python -O`` could strip. Checks, in order: the value is text, it
+    is non-empty, it is not only whitespace, it carries no leading or
+    trailing whitespace, it is a single line, and its length is within
+    1..MAX_CHARS characters (the trailing newline written to disk is a
+    terminator, not part of the counted entry).
+    """
+    if not isinstance(line, str):
+        raise SystemExit(f"error: {source} must be text, got {type(line).__name__}")
+    if not line:
+        raise SystemExit(f"error: {source} must not be empty")
+    if not line.strip():
+        raise SystemExit(f"error: {source} must not be only whitespace")
+    if "\n" in line or "\r" in line:
+        raise SystemExit(f"error: {source} must be a single line (no newline characters)")
+    if line != line.strip():
+        raise SystemExit(f"error: {source} must not have leading or trailing whitespace")
+    if not (1 <= len(line) <= MAX_CHARS):
+        raise SystemExit(
+            f"error: {source} is {len(line)} characters, outside the "
+            f"1-{MAX_CHARS} character limit"
+        )
+
+
 def main() -> int:
     # One line, no leading/trailing blank space, well inside the cap.
     line = ENTRY.strip()
-    if "\n" in line or "\r" in line:
-        print("entry must be a single line", file=sys.stderr)
-        return 1
-    if not line:
-        print("entry must not be empty", file=sys.stderr)
-        return 1
-    if len(line) > MAX_CHARS:
-        print(
-            f"entry is {len(line)} characters, over the {MAX_CHARS} cap",
-            file=sys.stderr,
-        )
-        return 1
+    validate_entry(line, "entry")
     text = line + "\n"
-    if len(text) > MAX_CHARS:
-        print("entry with newline is over the cap", file=sys.stderr)
-        return 1
 
     out_dir = os.environ.get("OUTPUT_DIR", "/output")
     os.makedirs(out_dir, exist_ok=True)
@@ -52,14 +65,16 @@ def main() -> int:
 
     # Read the file back and verify what actually landed on disk, so a
     # silent write problem can never ship a bad entry.
-    with open(path, "r", encoding="utf-8", newline="\n") as f:
-        written = f.read()
+    try:
+        with open(path, "r", encoding="utf-8", newline="\n") as f:
+            written = f.read()
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"error: verification failed: entry.txt is not valid UTF-8 ({exc})") from exc
     if written != text:
-        print("verification failed: entry.txt does not match", file=sys.stderr)
-        return 1
-    if not (1 <= len(written) <= MAX_CHARS):
-        print("verification failed: entry.txt is outside the cap", file=sys.stderr)
-        return 1
+        raise SystemExit("error: verification failed: entry.txt does not match the entry")
+    if not written.endswith("\n") or written.count("\n") != 1:
+        raise SystemExit("error: verification failed: entry.txt must be one line ending in a newline")
+    validate_entry(written[:-1], "entry.txt")
     print(f"wrote {len(line)} characters to {path}")
     return 0
 
