@@ -74,6 +74,13 @@ def main() -> int:
         raise SystemExit("error: verification failed: entry.txt does not match the entry")
     if not written.endswith("\n") or written.count("\n") != 1:
         raise SystemExit("error: verification failed: entry.txt must be one line ending in a newline")
+    expected_bytes = len(text.encode("utf-8"))
+    actual_bytes = os.path.getsize(path)
+    if actual_bytes != expected_bytes:
+        raise SystemExit(
+            f"error: verification failed: entry.txt is {actual_bytes} bytes "
+            f"on disk, expected {expected_bytes} bytes of UTF-8"
+        )
     validate_entry(written[:-1], "entry.txt")
     print(f"wrote {len(line)} characters to {path}")
     return 0
